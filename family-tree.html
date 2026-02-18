@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Family Tree</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=Lato:wght@300;400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bark: #5c3d2e;
+    --soil: #3b2412;
+    --moss: #6b7c5c;
+    --sage: #9aab89;
+    --parchment: #f5ede0;
+    --cream: #faf5ed;
+    --gold: #c8973a;
+    --leaf: #7d9b6a;
+    --stem: #8b6c50;
+    --shadow: rgba(59,36,18,0.18);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--cream);
+    font-family: 'Lato', sans-serif;
+    color: var(--soil);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed; inset: 0; z-index: 0;
+    background:
+      radial-gradient(ellipse at 10% 15%, rgba(107,124,92,0.13) 0%, transparent 55%),
+      radial-gradient(ellipse at 90% 80%, rgba(200,151,58,0.09) 0%, transparent 50%);
+    pointer-events: none;
+  }
+
+  header {
+    text-align: center;
+    padding: 40px 20px 16px;
+    position: relative; z-index: 2;
+  }
+  header h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(2rem, 5vw, 3.2rem);
+    color: var(--bark);
+    letter-spacing: 0.02em;
+  }
+  header p {
+    color: var(--moss);
+    font-size: 0.85rem;
+    margin-top: 5px;
+    font-weight: 300;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  .divider {
+    text-align: center;
+    margin: 8px 0 20px;
+    color: var(--sage);
+    font-size: 1.3rem;
+    letter-spacing: 10px;
+  }
+
+  #tree-wrap {
+    position: relative; z-index: 1;
+    overflow-x: auto;
+    padding: 10px 40px 80px;
+  }
+  #tree-svg-layer {
+    position: absolute; top: 0; left: 0;
+    pointer-events: none; z-index: 0;
+  }
+  #tree-canvas {
+    position: relative; z-index: 1;
+    min-width: 860px;
+  }
+
+  .gen-row {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    position: relative;
+  }
+  .gen-spacer { height: 58px; }
+
+  .person-card {
+    background: var(--parchment);
+    border: 2px solid var(--sage);
+    border-radius: 14px;
+    padding: 13px 14px 11px;
+    width: 145px;
+    text-align: center;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+    box-shadow: 0 3px 10px var(--shadow);
+    animation: fadeUp 0.45s ease both;
+    flex-shrink: 0;
+  }
+  .person-card:hover {
+    transform: translateY(-4px) scale(1.03);
+    box-shadow: 0 8px 22px var(--shadow);
+    border-color: var(--gold);
+  }
+  .person-card.selected {
+    border-color: var(--gold);
+    background: #fff9f0;
+    box-shadow: 0 6px 20px rgba(200,151,58,0.25);
+  }
+
+  .avatar {
+    width: 48px; height: 48px;
+    border-radius: 50%;
+    margin: 0 auto 8px;
+    display: flex; align-items: center; justify-content: center;
+    border: 2px solid var(--sage);
+    background: linear-gradient(135deg, var(--moss) 0%, var(--leaf) 100%);
+    color: white;
+    font-family: 'Playfair Display', serif;
+    font-size: 1.15rem;
+    font-style: italic;
+  }
+  .person-name {
+    font-family: 'Playfair Display', serif;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--bark);
+    line-height: 1.25;
+  }
+  .person-dates {
+    font-size: 0.7rem;
+    color: var(--moss);
+    margin-top: 3px;
+    font-weight: 300;
+  }
+  .person-relation {
+    font-size: 0.65rem;
+    color: var(--gold);
+    margin-top: 4px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  /* Edit Panel */
+  #edit-panel {
+    position: fixed;
+    right: 0; top: 0; bottom: 0;
+    width: 295px;
+    background: var(--parchment);
+    border-left: 2px solid var(--sage);
+    padding: 28px 22px;
+    z-index: 100;
+    transform: translateX(100%);
+    transition: transform 0.32s cubic-bezier(.4,0,.2,1);
+    overflow-y: auto;
+    box-shadow: -6px 0 28px var(--shadow);
+  }
+  #edit-panel.open { transform: translateX(0); }
+  #edit-panel h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.25rem;
+    color: var(--bark);
+    margin-bottom: 18px;
+  }
+
+  .field-group { margin-bottom: 12px; }
+  .field-group label {
+    display: block;
+    font-size: 0.72rem;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--moss);
+    margin-bottom: 4px;
+  }
+  .field-group input, .field-group select {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1.5px solid var(--sage);
+    border-radius: 7px;
+    background: var(--cream);
+    font-family: 'Lato', sans-serif;
+    font-size: 0.88rem;
+    color: var(--soil);
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .field-group input:focus, .field-group select:focus { border-color: var(--gold); }
+
+  .btn {
+    padding: 8px 16px;
+    border-radius: 7px;
+    border: none;
+    cursor: pointer;
+    font-family: 'Lato', sans-serif;
+    font-size: 0.83rem;
+    letter-spacing: 0.04em;
+    transition: background 0.18s, transform 0.12s;
+  }
+  .btn:hover { transform: translateY(-1px); }
+  .btn-primary { background: var(--bark); color: var(--cream); }
+  .btn-primary:hover { background: var(--soil); }
+  .btn-danger { background: rgba(192,57,43,0.1); color: #c0392b; border: 1px solid rgba(192,57,43,0.3); }
+  .btn-danger:hover { background: rgba(192,57,43,0.2); }
+  .btn-ghost { background: transparent; color: var(--moss); border: 1.5px solid var(--sage); }
+  .btn-ghost:hover { background: var(--sage); color: white; }
+
+  .panel-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+
+  #close-panel {
+    position: absolute; top: 14px; right: 16px;
+    background: none; border: none; font-size: 1.2rem;
+    cursor: pointer; color: var(--moss);
+  }
+  #close-panel:hover { color: var(--bark); }
+
+  /* Add button */
+  #add-btn {
+    position: fixed;
+    bottom: 24px; left: 50%; transform: translateX(-50%);
+    z-index: 50;
+    background: var(--bark); color: var(--cream);
+    border: none; border-radius: 28px;
+    padding: 11px 26px;
+    font-family: 'Playfair Display', serif;
+    font-size: 0.95rem;
+    cursor: pointer;
+    box-shadow: 0 4px 16px var(--shadow);
+    transition: background 0.2s, transform 0.2s;
+    letter-spacing: 0.04em;
+  }
+  #add-btn:hover { background: var(--soil); transform: translateX(-50%) translateY(-2px); }
+
+  /* Add modal */
+  #add-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(59,36,18,0.38);
+    z-index: 150; align-items: center; justify-content: center;
+  }
+  #add-overlay.show { display: flex; }
+  #add-modal {
+    background: var(--parchment);
+    border-radius: 16px;
+    padding: 28px 24px;
+    width: 310px;
+    box-shadow: 0 12px 40px var(--shadow);
+    position: relative;
+  }
+  #add-modal h2 {
+    font-family: 'Playfair Display', serif;
+    color: var(--bark);
+    margin-bottom: 16px;
+    font-size: 1.2rem;
+  }
+  #close-add {
+    position: absolute; top: 12px; right: 14px;
+    background: none; border: none; font-size: 1.2rem;
+    cursor: pointer; color: var(--moss);
+  }
+
+  .connector-line {
+    stroke: var(--sage);
+    stroke-width: 1.8;
+    fill: none;
+    opacity: 0.65;
+  }
+
+  #legend {
+    text-align: center;
+    font-size: 0.73rem;
+    color: var(--moss);
+    margin-bottom: 8px;
+    letter-spacing: 0.04em;
+    position: relative; z-index: 2;
+  }
+
+  /* Leaf corners */
+  .leaf-corner {
+    position: fixed; pointer-events: none; z-index: 0; opacity: 0.1;
+  }
+
+  #toast {
+    position: fixed; bottom: 76px; left: 50%; transform: translateX(-50%);
+    background: var(--bark); color: var(--cream);
+    padding: 9px 20px; border-radius: 20px;
+    font-size: 0.82rem; z-index: 200;
+    opacity: 0; transition: opacity 0.28s;
+    pointer-events: none; white-space: nowrap;
+  }
+  #toast.show { opacity: 1; }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+</style>
+</head>
+<body>
+
+<!-- Decorative leaves -->
+<svg class="leaf-corner" style="top:-30px;left:-50px;width:240px;height:240px;" viewBox="0 0 200 200">
+  <ellipse cx="100" cy="100" rx="80" ry="32" fill="#6b7c5c" transform="rotate(-35 100 100)"/>
+  <ellipse cx="100" cy="100" rx="80" ry="32" fill="#9aab89" transform="rotate(15 100 100)"/>
+  <line x1="100" y1="25" x2="100" y2="175" stroke="#5c3d2e" stroke-width="2.5"/>
+</svg>
+<svg class="leaf-corner" style="bottom:-30px;right:-40px;width:210px;height:210px;" viewBox="0 0 200 200">
+  <ellipse cx="100" cy="100" rx="75" ry="28" fill="#c8973a" transform="rotate(50 100 100)"/>
+  <ellipse cx="100" cy="100" rx="75" ry="28" fill="#7d9b6a" transform="rotate(-15 100 100)"/>
+</svg>
+
+<header>
+  <h1>The Family Tree</h1>
+  <p>Roots &amp; Branches</p>
+  <div class="divider">❧ ✦ ❧</div>
+</header>
+<div id="legend">Click any card to edit · Use the button below to add a new member</div>
+
+<div id="tree-wrap">
+  <svg id="tree-svg-layer"></svg>
+  <div id="tree-canvas"></div>
+</div>
+
+<!-- Edit Panel -->
+<div id="edit-panel">
+  <button id="close-panel" title="Close">✕</button>
+  <h2>Edit Member</h2>
+  <div class="field-group"><label>First Name</label><input type="text" id="f-first"></div>
+  <div class="field-group"><label>Last Name</label><input type="text" id="f-last"></div>
+  <div class="field-group"><label>Birth Year</label><input type="text" id="f-birth" placeholder="e.g. 1945"></div>
+  <div class="field-group"><label>Passed Year (leave blank if living)</label><input type="text" id="f-death" placeholder="e.g. 2010"></div>
+  <div class="field-group"><label>Relation / Role</label><input type="text" id="f-relation" placeholder="e.g. Grandfather"></div>
+  <div class="field-group">
+    <label>Generation Row</label>
+    <select id="f-gen">
+      <option value="0">Gen 1 – Great-grandparents</option>
+      <option value="1">Gen 2 – Grandparents</option>
+      <option value="2">Gen 3 – Parents</option>
+      <option value="3">Gen 4 – You & Siblings</option>
+      <option value="4">Gen 5 – Children</option>
+    </select>
+  </div>
+  <div class="panel-actions">
+    <button class="btn btn-primary" id="save-btn">Save</button>
+    <button class="btn btn-danger" id="delete-btn">Remove</button>
+    <button class="btn btn-ghost" id="cancel-edit-btn">Cancel</button>
+  </div>
+</div>
+
+<!-- Add Modal -->
+<div id="add-overlay">
+  <div id="add-modal">
+    <button id="close-add">✕</button>
+    <h2>Add Family Member</h2>
+    <div class="field-group"><label>First Name</label><input type="text" id="a-first" placeholder="First name"></div>
+    <div class="field-group"><label>Last Name</label><input type="text" id="a-last" placeholder="Last name"></div>
+    <div class="field-group"><label>Birth Year</label><input type="text" id="a-birth" placeholder="e.g. 1985"></div>
+    <div class="field-group"><label>Passed Year</label><input type="text" id="a-death" placeholder="Leave blank if living"></div>
+    <div class="field-group"><label>Relation / Role</label><input type="text" id="a-relation" placeholder="e.g. Uncle, Cousin…"></div>
+    <div class="field-group">
+      <label>Generation Row</label>
+      <select id="a-gen">
+        <option value="0">Gen 1 – Great-grandparents</option>
+        <option value="1">Gen 2 – Grandparents</option>
+        <option value="2">Gen 3 – Parents</option>
+        <option value="3" selected>Gen 4 – You & Siblings</option>
+        <option value="4">Gen 5 – Children</option>
+      </select>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:14px;">
+      <button class="btn btn-primary" id="confirm-add-btn">Add to Tree</button>
+      <button class="btn btn-ghost" id="cancel-add-btn">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<button id="add-btn">＋ Add Family Member</button>
+<div id="toast"></div>
+
+<script>
+let people = [
+  { id:1,  first:'Harold', last:'Greenwood', birth:'1918', death:'1991', relation:'Great-grandfather', gen:0 },
+  { id:2,  first:'Mabel',  last:'Greenwood', birth:'1922', death:'1998', relation:'Great-grandmother', gen:0 },
+  { id:3,  first:'Victor', last:'Ashbury',   birth:'1920', death:'1985', relation:'Great-grandfather', gen:0 },
+  { id:4,  first:'Rose',   last:'Ashbury',   birth:'1925', death:'2005', relation:'Great-grandmother', gen:0 },
+  { id:5,  first:'Arthur', last:'Greenwood', birth:'1948', death:'',     relation:'Grandfather',       gen:1 },
+  { id:6,  first:'Edith',  last:'Greenwood', birth:'1950', death:'',     relation:'Grandmother',       gen:1 },
+  { id:7,  first:'Thomas', last:'Ashbury',   birth:'1952', death:'2020', relation:'Grandfather',       gen:1 },
+  { id:8,  first:'Clara',  last:'Ashbury',   birth:'1954', death:'',     relation:'Grandmother',       gen:1 },
+  { id:9,  first:'James',  last:'Greenwood', birth:'1975', death:'',     relation:'Father',            gen:2 },
+  { id:10, first:'Sarah',  last:'Greenwood', birth:'1977', death:'',     relation:'Mother',            gen:2 },
+  { id:11, first:'Oliver', last:'Greenwood', birth:'2001', death:'',     relation:'You',               gen:3 },
+  { id:12, first:'Emma',   last:'Greenwood', birth:'2003', death:'',     relation:'Sister',            gen:3 },
+  { id:13, first:'Lucas',  last:'Greenwood', birth:'2006', death:'',     relation:'Brother',           gen:3 },
+  { id:14, first:'Lily',   last:'Greenwood', birth:'2026', death:'',     relation:'Niece',             gen:4 },
+];
+let nextId = 20;
+let selectedId = null;
+
+function initials(p){ return (p.first[0]||'')+(p.last[0]||''); }
+function dateStr(p){
+  if(p.birth && p.death) return p.birth+' – '+p.death;
+  if(p.birth) return 'b. '+p.birth;
+  return '';
+}
+
+function render(){
+  const canvas = document.getElementById('tree-canvas');
+  canvas.innerHTML = '';
+  [0,1,2,3,4].forEach(g => {
+    const members = people.filter(p=>p.gen===g);
+    if(!members.length) return;
+    const row = document.createElement('div');
+    row.className = 'gen-row';
+    row.dataset.gen = g;
+    members.forEach((p,i) => {
+      const card = document.createElement('div');
+      card.className = 'person-card'+(selectedId===p.id?' selected':'');
+      card.dataset.id = p.id;
+      card.style.animationDelay = (i*0.07)+'s';
+      card.innerHTML = `<div class="avatar">${initials(p)}</div>
+        <div class="person-name">${p.first} ${p.last}</div>
+        <div class="person-dates">${dateStr(p)}</div>
+        ${p.relation?`<div class="person-relation">${p.relation}</div>`:''}`;
+      card.addEventListener('click',()=>openEdit(p.id));
+      row.appendChild(card);
+    });
+    canvas.appendChild(row);
+    if(g<4){
+      const sp = document.createElement('div');
+      sp.className='gen-spacer'; sp.dataset.spacer=g;
+      canvas.appendChild(sp);
+    }
+  });
+  requestAnimationFrame(drawConnectors);
+}
+
+function drawConnectors(){
+  const wrap = document.getElementById('tree-wrap');
+  const svg  = document.getElementById('tree-svg-layer');
+  svg.innerHTML='';
+  svg.setAttribute('width', wrap.scrollWidth);
+  svg.setAttribute('height', wrap.scrollHeight);
+  const wR = wrap.getBoundingClientRect();
+  const sX = wrap.scrollLeft, sY = wrap.scrollTop;
+
+  [0,1,2,3].forEach(g => {
+    const pRow = document.querySelector(`.gen-row[data-gen="${g}"]`);
+    const cRow = document.querySelector(`.gen-row[data-gen="${g+1}"]`);
+    if(!pRow||!cRow) return;
+    const pCards = Array.from(pRow.querySelectorAll('.person-card'));
+    const cCards = Array.from(cRow.querySelectorAll('.person-card'));
+    if(!pCards.length||!cCards.length) return;
+
+    const pR = pCards.map(c=>{const r=c.getBoundingClientRect(); return {x:r.left+r.width/2-wR.left+sX, y:r.bottom-wR.top+sY};});
+    const cR = cCards.map(c=>{const r=c.getBoundingClientRect(); return {x:r.left+r.width/2-wR.left+sX, y:r.top-wR.top+sY};});
+
+    const pMidX = (pR[0].x+pR[pR.length-1].x)/2;
+    const pY = pR[0].y+8;
+    const cMidX = (cR[0].x+cR[cR.length-1].x)/2;
+    const cY = cR[0].y-8;
+    const midY = (pY+cY)/2;
+
+    line(svg, pMidX, pY, pMidX, midY);
+    if(cR.length>1) line(svg, cR[0].x, midY, cR[cR.length-1].x, midY);
+    cR.forEach(r=>line(svg, r.x, midY, r.x, r.y));
+    if(pR.length>1) line(svg, pR[0].x, pR[0].y-18, pR[pR.length-1].x, pR[0].y-18);
+  });
+}
+
+function line(svg, x1,y1,x2,y2){
+  const el=document.createElementNS('http://www.w3.org/2000/svg','line');
+  el.setAttribute('x1',x1);el.setAttribute('y1',y1);
+  el.setAttribute('x2',x2);el.setAttribute('y2',y2);
+  el.setAttribute('class','connector-line');
+  svg.appendChild(el);
+}
+
+// Edit panel
+function openEdit(id){
+  const p=people.find(x=>x.id===id); if(!p) return;
+  selectedId=id;
+  document.getElementById('f-first').value=p.first;
+  document.getElementById('f-last').value=p.last;
+  document.getElementById('f-birth').value=p.birth;
+  document.getElementById('f-death').value=p.death;
+  document.getElementById('f-relation').value=p.relation;
+  document.getElementById('f-gen').value=p.gen;
+  document.getElementById('edit-panel').classList.add('open');
+  render();
+}
+function closeEdit(){
+  selectedId=null;
+  document.getElementById('edit-panel').classList.remove('open');
+  render();
+}
+document.getElementById('close-panel').onclick=closeEdit;
+document.getElementById('cancel-edit-btn').onclick=closeEdit;
+document.getElementById('save-btn').onclick=()=>{
+  const p=people.find(x=>x.id===selectedId); if(!p) return;
+  p.first=document.getElementById('f-first').value.trim()||p.first;
+  p.last=document.getElementById('f-last').value.trim()||p.last;
+  p.birth=document.getElementById('f-birth').value.trim();
+  p.death=document.getElementById('f-death').value.trim();
+  p.relation=document.getElementById('f-relation').value.trim();
+  p.gen=parseInt(document.getElementById('f-gen').value);
+  closeEdit(); toast('Changes saved ✓');
+};
+document.getElementById('delete-btn').onclick=()=>{
+  if(!confirm('Remove this person from the tree?')) return;
+  people=people.filter(x=>x.id!==selectedId);
+  closeEdit(); toast('Member removed');
+};
+
+// Add modal
+function openAdd(){
+  document.getElementById('add-overlay').classList.add('show');
+  ['a-first','a-last','a-birth','a-death','a-relation'].forEach(id=>document.getElementById(id).value='');
+}
+function closeAdd(){ document.getElementById('add-overlay').classList.remove('show'); }
+document.getElementById('add-btn').onclick=openAdd;
+document.getElementById('close-add').onclick=closeAdd;
+document.getElementById('cancel-add-btn').onclick=closeAdd;
+document.getElementById('add-overlay').addEventListener('click',e=>{ if(e.target===document.getElementById('add-overlay')) closeAdd(); });
+document.getElementById('confirm-add-btn').onclick=()=>{
+  const first=document.getElementById('a-first').value.trim();
+  if(!first){ alert('Please enter a first name.'); return; }
+  people.push({
+    id:nextId++, first,
+    last:document.getElementById('a-last').value.trim(),
+    birth:document.getElementById('a-birth').value.trim(),
+    death:document.getElementById('a-death').value.trim(),
+    relation:document.getElementById('a-relation').value.trim(),
+    gen:parseInt(document.getElementById('a-gen').value),
+  });
+  closeAdd(); render(); toast(first+' added to the tree 🌿');
+};
+
+function toast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2200);
+}
+
+render();
+window.addEventListener('resize', drawConnectors);
+</script>
+</body>
+</html>
