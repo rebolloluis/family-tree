@@ -4,11 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-A single-file, zero-dependency family tree web app (`family-tree.html`). No build step, no package manager, no server — open the file directly in a browser.
+A single-file, zero-dependency family tree web app (`index.html`). No build step, no package manager, no server — open the file directly in a browser.
 
 ## Architecture
 
-Everything lives in `family-tree.html` with three sections:
+Everything lives in `index.html` with three sections:
 
 - **CSS** (`<style>`): CSS custom properties for the design system (colors, fonts). Two Google Fonts: DM Serif Display (headings/names) and DM Sans (body). Components: header, `.card` (member tile), `.tray` (bottom action bar on selection), `.modal`/`.overlay` (add/edit form).
 
