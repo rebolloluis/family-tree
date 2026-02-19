@@ -24,6 +24,20 @@ export default function TreeCanvas({ family, initialMembers, canEdit }: Props) {
 
   const selected = members.find(m => m.id === selectedId) ?? null
 
+  // Real-time sync
+  useEffect(() => {
+    const channel = supabase
+      .channel(`family-${family.id}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'members', filter: `family_id=eq.${family.id}` },
+        ({ new: row }) => setMembers(ms => ms.some(m => m.id === row.id) ? ms : [...ms, row as Member]))
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'members', filter: `family_id=eq.${family.id}` },
+        ({ new: row }) => setMembers(ms => ms.map(m => m.id === row.id ? row as Member : m)))
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'members', filter: `family_id=eq.${family.id}` },
+        ({ old: row }) => setMembers(ms => ms.filter(m => m.id !== row.id)))
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [family.id])
+
   function buildGens(): Member[][] {
     const gens: Member[][] = []
     let cur = members.filter(m => !m.parent_id)
@@ -213,6 +227,7 @@ export default function TreeCanvas({ family, initialMembers, canEdit }: Props) {
         <MemberModal
           mode={modal.mode}
           member={modal.mode === 'edit' ? modal.member : undefined}
+          familyId={family.id}
           onSave={handleSave}
           onDelete={modal.mode === 'edit' ? () => handleDelete(modal.member.id) : undefined}
           onClose={() => setModal(null)}

@@ -2,10 +2,12 @@
 
 import { useState, useRef } from 'react'
 import type { Member } from '@family-tree/shared'
+import { uploadFile } from '@/lib/supabase/storage'
 
 type Props = {
   mode: 'add' | 'edit'
   member?: Member
+  familyId: string
   onSave: (data: Partial<Member>) => void
   onDelete?: () => void
   onClose: () => void
@@ -17,33 +19,48 @@ const RELATIONS = ['Grandfather', 'Grandmother', 'Father', 'Mother', 'Son', 'Dau
 const inits = (n: string) =>
   n.trim().split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase() || '?'
 
-export default function MemberModal({ mode, member, onSave, onDelete, onClose }: Props) {
+export default function MemberModal({ mode, member, familyId, onSave, onDelete, onClose }: Props) {
   const [name, setName]         = useState(member?.name ?? '')
   const [born, setBorn]         = useState(member?.born?.toString() ?? '')
   const [died, setDied]         = useState(member?.died?.toString() ?? '')
   const [relation, setRelation] = useState(member?.relation ?? '')
   const [note, setNote]         = useState(member?.note ?? '')
   const [photoUrl, setPhotoUrl] = useState<string | null>(member?.photo_url ?? null)
+  const [pendingFile, setPendingFile] = useState<File | null>(null)
+  const [saving, setSaving] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   function handlePhoto(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    const reader = new FileReader()
-    reader.onload = ev => setPhotoUrl(ev.target?.result as string)
-    reader.readAsDataURL(file)
+    setPendingFile(file)
+    setPhotoUrl(URL.createObjectURL(file))
   }
 
-  function handleSave() {
+  async function handleSave() {
     if (!name.trim()) return
+    setSaving(true)
+
+    let finalPhotoUrl = photoUrl
+    if (pendingFile) {
+      const ext = pendingFile.name.split('.').pop()
+      const path = `${familyId}/${Date.now()}.${ext}`
+      try {
+        finalPhotoUrl = await uploadFile('member-photos', path, pendingFile)
+      } catch {
+        finalPhotoUrl = photoUrl
+      }
+    }
+
     onSave({
       name: name.trim(),
       born: born ? parseInt(born) : null,
       died: died ? parseInt(died) : null,
       relation: relation || null,
       note: note.trim() || null,
-      photo_url: photoUrl,
+      photo_url: finalPhotoUrl,
     })
+    setSaving(false)
   }
 
   return (
@@ -102,8 +119,10 @@ export default function MemberModal({ mode, member, onSave, onDelete, onClose }:
             )}
           </div>
           <div style={{ display: 'flex', gap: '0.4rem' }}>
-            <button className="btn-ghost" onClick={onClose}>Cancel</button>
-            <button className="btn-primary" onClick={handleSave}>Save</button>
+            <button className="btn-ghost" onClick={onClose} disabled={saving}>Cancel</button>
+            <button className="btn-primary" onClick={handleSave} disabled={saving}>
+              {saving ? 'Saving…' : 'Save'}
+            </button>
           </div>
         </div>
       </div>
