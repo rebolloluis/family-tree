@@ -105,7 +105,7 @@ export default function TreeCanvas({ family, initialMembers, canEdit }: Props) {
   const gens = buildGens()
 
   return (
-    <>
+    <div className="tree-page">
       <header className="tree-header">
         <div>
           <h1 className="tree-title">{family.name}</h1>
@@ -218,6 +218,6 @@ export default function TreeCanvas({ family, initialMembers, canEdit }: Props) {
           onClose={() => setModal(null)}
         />
       )}
-    </>
+    </div>
   )
 }

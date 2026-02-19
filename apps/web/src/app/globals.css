@@ -12,6 +12,7 @@
   --ink-light:   #a8a8a5;
   --serif:       'DM Serif Display', Georgia, serif;
   --sans:        'DM Sans', system-ui, sans-serif;
+  --nav-height:  65px;
 }
 
 @theme inline {
@@ -165,7 +166,8 @@ input:focus { border-color: var(--ink); }
 .tree-desc { font-size: 0.75rem; color: var(--ink-light); margin-top: 0.1rem; }
 .member-count { font-size: 0.72rem; color: var(--ink-light); }
 
-.canvas-wrap { flex: 1; overflow: auto; background: var(--white); height: calc(100vh - 130px); }
+.tree-page { display: flex; flex-direction: column; height: calc(100dvh - var(--nav-height)); overflow: hidden; }
+.canvas-wrap { flex: 1; overflow: auto; background: var(--white); }
 .tree-canvas { position: relative; min-width: max-content; padding: 4rem 4rem 7rem; }
 .svg-lines { position: absolute; top: 0; left: 0; pointer-events: none; z-index: 0; overflow: visible; }
 
