@@ -1,0 +1,11 @@
+{
+  "name": "family-tree",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --filter web dev",
+    "build": "pnpm --filter web build"
+  },
+  "devDependencies": {
+    "typescript": "^5"
+  }
+}
