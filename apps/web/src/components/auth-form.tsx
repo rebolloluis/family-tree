@@ -11,11 +11,12 @@ export default function AuthForm({ mode }: { mode: Mode }) {
   const router = useRouter()
   const supabase = createClient()
 
-  const [fullName, setFullName] = useState('')
-  const [email, setEmail]       = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError]       = useState<string | null>(null)
-  const [loading, setLoading]   = useState(false)
+  const [fullName, setFullName]     = useState('')
+  const [email, setEmail]           = useState('')
+  const [password, setPassword]     = useState('')
+  const [error, setError]           = useState<string | null>(null)
+  const [loading, setLoading]       = useState(false)
+  const [checkEmail, setCheckEmail] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -23,20 +24,38 @@ export default function AuthForm({ mode }: { mode: Mode }) {
     setLoading(true)
 
     if (mode === 'signup') {
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: { data: { full_name: fullName } },
       })
       if (error) { setError(error.message); setLoading(false); return }
-      router.push('/?welcome=1')
+      // If session is null, email confirmation is required
+      if (!data.session) { setCheckEmail(true); setLoading(false); return }
+      router.push('/dashboard')
     } else {
       const { error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) { setError(error.message); setLoading(false); return }
-      router.push('/')
+      router.push('/dashboard')
     }
 
     router.refresh()
+  }
+
+  if (checkEmail) {
+    return (
+      <div style={{ textAlign: 'center', padding: '1rem 0' }}>
+        <div style={{ fontSize: '2rem', marginBottom: '0.75rem' }}>📬</div>
+        <p style={{ fontFamily: 'var(--serif)', fontSize: '1.1rem', marginBottom: '0.5rem' }}>Check your email</p>
+        <p style={{ fontSize: '0.82rem', color: 'var(--ink-light)', lineHeight: 1.6 }}>
+          We sent a confirmation link to <strong>{email}</strong>.<br />
+          Click it to activate your account, then sign in.
+        </p>
+        <Link href="/auth/login" style={{ display: 'inline-block', marginTop: '1.25rem', fontSize: '0.82rem', color: 'var(--ink)' }}>
+          Go to sign in →
+        </Link>
+      </div>
+    )
   }
 
   return (
