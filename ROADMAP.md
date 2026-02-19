@@ -23,15 +23,15 @@ Goal: maximize shared code and data across all three with minimal rework.
 ## Features by Phase
 
 ### Phase 1 — Web Foundation
-- [ ] Define and finalize stack (frontend framework, backend, auth, DB)
-- [ ] Migrate single-file app to modular project structure
-- [ ] Authentication (sign up / log in / log out)
+- [x] Define and finalize stack (frontend framework, backend, auth, DB)
+- [x] Migrate single-file app to modular project structure
+- [x] Authentication (sign up / log in / log out)
 - [ ] User profiles (name, photo, linked family member)
-- [ ] Family tree data model: members, relationships, ownership
-- [ ] Public browsing — homepage with search to find existing trees
-- [ ] Private editing — only logged-in members can add/edit
+- [x] Family tree data model: members, relationships, ownership
+- [x] Public browsing — homepage with search to find existing trees
+- [x] Private editing — only logged-in members can add/edit
 - [ ] Real-time sync across devices/users
-- [ ] Photo uploads per member (profile photo)
+- [ ] Photo uploads per member (profile photo — stored as base64 locally, needs Supabase Storage)
 
 ### Phase 2 — Living Tree Visualization
 - [ ] Replace current connector-line layout with an illustrated, organic tree
