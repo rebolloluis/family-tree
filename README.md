@@ -1,16 +1,29 @@
 # Family Tree
 
-A single-file, zero-dependency family tree web app.
+A collaborative family tree web app — build and share your family history together.
 
-**[Live demo →](https://rebolloluis.github.io/family-tree/)**
+**[Live app →](https://family-tree-chi-three.vercel.app/)**
 
 ## Features
 
-- Add family members with name, birth/death years, relation, note, and photo
+- Sign up and create your own family tree
+- Add members with name, birth/death years, relation, note, and photo
 - Parent–child relationships visualized with connector lines
-- Tap a card to select; add children directly from the selection tray
-- Data persists in `localStorage`
+- Public browsing — anyone can view family trees without an account
+- Real-time sync — changes appear instantly across devices
+- Photo uploads per member via cloud storage
 
-## Usage
+## Stack
 
-Open `index.html` in any browser — no build step or server required.
+- **Web**: Next.js 16 (App Router, TypeScript, Tailwind)
+- **Backend**: Supabase (Postgres, Auth, Storage, Real-time)
+- **Monorepo**: pnpm workspaces (`apps/web`, `packages/shared`)
+
+## Development
+
+```bash
+pnpm install
+pnpm dev
+```
+
+Open [http://localhost:3000](http://localhost:3000).
