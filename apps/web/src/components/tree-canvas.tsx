@@ -26,6 +26,12 @@ export default function TreeCanvas({ family, initialMembers, canEdit, userId, us
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [modal, setModal] = useState<ModalState | null>(null)
   const [userMemberId, setUserMemberId] = useState<string | null>(initialUserMemberId ?? null)
+  const [familyName, setFamilyName] = useState(family.name)
+  const [familyDescription, setFamilyDescription] = useState(family.description ?? '')
+  const [editingFamily, setEditingFamily] = useState(false)
+  const [familyEditName, setFamilyEditName] = useState(family.name)
+  const [familyEditDesc, setFamilyEditDesc] = useState(family.description ?? '')
+  const [savingFamily, setSavingFamily] = useState(false)
   const svgRef = useRef<SVGSVGElement>(null)
   const canvasRef = useRef<HTMLDivElement>(null)
   const supabase = createClient()
@@ -150,14 +156,37 @@ export default function TreeCanvas({ family, initialMembers, canEdit, userId, us
     })
   }
 
+  async function handleFamilySave() {
+    if (!familyEditName.trim()) return
+    setSavingFamily(true)
+    await supabase.from('families')
+      .update({ name: familyEditName.trim(), description: familyEditDesc.trim() || null })
+      .eq('id', family.id)
+    setFamilyName(familyEditName.trim())
+    setFamilyDescription(familyEditDesc.trim())
+    setSavingFamily(false)
+    setEditingFamily(false)
+  }
+
+  function openFamilyEdit() {
+    setFamilyEditName(familyName)
+    setFamilyEditDesc(familyDescription)
+    setEditingFamily(true)
+  }
+
   const gens = buildGens()
 
   return (
     <div className="tree-page">
       <header className="tree-header">
         <div>
-          <h1 className="tree-title">{family.name}</h1>
-          {family.description && <p className="tree-desc">{family.description}</p>}
+          <h1 className="tree-title">
+            {familyName}
+            {canEdit && (
+              <button className="tree-edit-btn" onClick={openFamilyEdit} title="Edit tree details">✎</button>
+            )}
+          </h1>
+          {familyDescription && <p className="tree-desc">{familyDescription}</p>}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <span className="member-count">
@@ -286,6 +315,34 @@ export default function TreeCanvas({ family, initialMembers, canEdit, userId, us
           onDelete={modal.mode === 'edit' ? () => handleDelete(modal.member.id) : undefined}
           onClose={() => setModal(null)}
         />
+      )}
+
+      {editingFamily && (
+        <div className="overlay open" onClick={e => { if (e.target === e.currentTarget) setEditingFamily(false) }}>
+          <div className="modal">
+            <div className="modal-hd">
+              <h2>Edit tree</h2>
+              <button className="modal-x" onClick={() => setEditingFamily(false)}>✕</button>
+            </div>
+            <div className="field">
+              <label>Tree name *</label>
+              <input type="text" value={familyEditName} onChange={e => setFamilyEditName(e.target.value)} autoFocus />
+            </div>
+            <div className="field">
+              <label>Description</label>
+              <input type="text" value={familyEditDesc} onChange={e => setFamilyEditDesc(e.target.value)} placeholder="A short description…" />
+            </div>
+            <div className="modal-ft">
+              <div />
+              <div style={{ display: 'flex', gap: '0.4rem' }}>
+                <button className="btn-ghost" onClick={() => setEditingFamily(false)} disabled={savingFamily}>Cancel</button>
+                <button className="btn-primary" onClick={handleFamilySave} disabled={savingFamily || !familyEditName.trim()}>
+                  {savingFamily ? 'Saving…' : 'Save'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

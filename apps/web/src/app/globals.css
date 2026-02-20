@@ -171,8 +171,13 @@ input:focus { border-color: var(--ink); }
   padding: 1.25rem 2rem; border-bottom: 1px solid var(--border);
   background: var(--white); position: sticky; top: 0; z-index: 40; gap: 1rem;
 }
-.tree-title { font-family: var(--serif); font-size: 1.2rem; font-weight: 400; }
+.tree-title { font-family: var(--serif); font-size: 1.2rem; font-weight: 400; display: flex; align-items: center; gap: 0.4rem; }
 .tree-desc { font-size: 0.75rem; color: var(--ink-light); margin-top: 0.1rem; }
+.tree-edit-btn {
+  background: none; border: none; cursor: pointer; padding: 0 0.2rem;
+  font-size: 0.85rem; color: var(--ink-light); line-height: 1; transition: color 0.15s;
+}
+.tree-edit-btn:hover { color: var(--ink); }
 .member-count { font-size: 0.72rem; color: var(--ink-light); }
 
 .tree-page { display: flex; flex-direction: column; height: calc(100dvh - var(--nav-height)); overflow: hidden; }
