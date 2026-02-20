@@ -61,3 +61,24 @@ supabase db push
 - Server components by default in Next.js; add `'use client'` only when needed
 - Keep Supabase queries in server components or server actions — never expose service keys to the client
 - New DB tables need RLS policies; add them to the relevant migration file
+
+## Deployment
+
+Production is hosted on [Vercel](https://vercel.com). Every push to `main` triggers a deploy automatically.
+
+**Vercel project settings (monorepo config):**
+
+| Setting | Value |
+|---|---|
+| Root Directory | `apps/web` |
+| Install Command | `cd ../.. && pnpm install` |
+| Build Command | `pnpm build` (default) |
+
+The custom install command is required so pnpm installs from the workspace root, making the `@family-tree/shared` package available. The `vercel.json` inside `apps/web/` sets these automatically — you shouldn't need to touch the dashboard.
+
+**Environment variables** (set in Vercel dashboard under Project → Settings → Environment Variables):
+
+```
+NEXT_PUBLIC_SUPABASE_URL
+NEXT_PUBLIC_SUPABASE_ANON_KEY
+```
