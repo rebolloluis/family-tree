@@ -266,7 +266,19 @@ input:focus { border-color: var(--ink); }
 .tray-btns { display: flex; gap: 0.3rem; flex-shrink: 0; align-items: center; }
 .tray-btns .btn-ghost,
 .tray-btns .btn-primary { font-size: 0.75rem; padding: 0.3rem 0.65rem; }
-.tray-rel-btn { color: var(--ink-mid); }
+
+/* Relationship picker — 2×2 grid that expands inline in the tray */
+.rel-picker { display: grid; grid-template-columns: 1fr 1fr; gap: 0.25rem; }
+.rel-picker-btn {
+  font-family: var(--sans); font-size: 0.7rem; font-weight: 500;
+  padding: 0.28rem 0.5rem; border-radius: 6px; cursor: pointer;
+  background: transparent; color: var(--ink-mid);
+  border: 1px solid var(--border); transition: all 0.15s; white-space: nowrap;
+}
+.rel-picker-btn:hover { background: var(--surface); color: var(--ink); border-color: var(--border-dark); }
+
+/* Spouse connector — horizontal line between partner cards */
+.spouse-connector { width: 20px; height: 2px; background: var(--border-dark); flex-shrink: 0; align-self: center; }
 
 /* ── Modal ─────────────────────────────────────────── */
 .overlay {

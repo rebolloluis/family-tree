@@ -2,6 +2,7 @@ export type Member = {
   id: string
   family_id: string
   parent_id: string | null
+  spouse_of: string | null
   name: string
   born: number | null
   died: number | null

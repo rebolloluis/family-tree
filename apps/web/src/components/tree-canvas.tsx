@@ -14,7 +14,7 @@ type Props = {
   userProfile?: { full_name: string | null; avatar_url: string | null } | null
 }
 
-type AddAs = 'root' | 'child' | 'sibling' | 'parent'
+type AddAs = 'root' | 'child' | 'sibling' | 'parent' | 'spouse'
 
 type ModalState =
   | { mode: 'add'; addAs: AddAs; anchorMember: Member | null; isSelfAdd?: boolean; prefill?: { name: string; photo_url: string | null } }
@@ -24,16 +24,49 @@ function addTitle(addAs: AddAs, anchor: Member | null): string {
   if (!anchor || addAs === 'root') return 'Add member'
   if (addAs === 'parent') return `Add parent of ${anchor.name}`
   if (addAs === 'sibling') return `Add sibling of ${anchor.name}`
+  if (addAs === 'spouse') return `Add spouse of ${anchor.name}`
   return `Add child of ${anchor.name}`
 }
 
 const inits = (n: string) =>
   n.trim().split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase() || '?'
 
+function MemberCard({ m, selectedId, userMemberId, onSelect, animDelay }: {
+  m: Member
+  selectedId: string | null
+  userMemberId: string | null
+  onSelect: (id: string) => void
+  animDelay: number
+}) {
+  const isSelf = m.id === userMemberId
+  return (
+    <div
+      data-id={m.id}
+      className={`card${m.id === selectedId ? ' selected' : ''}${isSelf ? ' card--self' : ''}`}
+      style={{ animationDelay: `${animDelay}ms` }}
+      onClick={() => onSelect(m.id)}
+    >
+      {isSelf && <span className="card-self-badge">You</span>}
+      <div className="avatar">
+        {m.photo_url ? <img src={m.photo_url} alt="" /> : inits(m.name)}
+      </div>
+      <div className="card-name">{m.name}</div>
+      {(m.born || m.died) && (
+        <div className="card-meta">
+          {m.born && m.died ? `${m.born} – ${m.died}` : m.born ? `b. ${m.born}` : `d. ${m.died}`}
+        </div>
+      )}
+      {m.note && <div className="card-meta">{m.note}</div>}
+      {m.relation && <span className="card-tag">{m.relation}</span>}
+    </div>
+  )
+}
+
 export default function TreeCanvas({ family, initialMembers, canEdit, userId, userMemberId: initialUserMemberId, userProfile }: Props) {
   const [members, setMembers] = useState<Member[]>(initialMembers)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [modal, setModal] = useState<ModalState | null>(null)
+  const [showRelPicker, setShowRelPicker] = useState(false)
   const [userMemberId, setUserMemberId] = useState<string | null>(initialUserMemberId ?? null)
   const [familyName, setFamilyName] = useState(family.name)
   const [familyDescription, setFamilyDescription] = useState(family.description ?? '')
@@ -47,6 +80,9 @@ export default function TreeCanvas({ family, initialMembers, canEdit, userId, us
 
   const selected = members.find(m => m.id === selectedId) ?? null
   const selfInTree = userMemberId ? members.some(m => m.id === userMemberId) : false
+
+  // Close rel picker when selection changes
+  useEffect(() => { setShowRelPicker(false) }, [selectedId])
 
   // Real-time sync
   useEffect(() => {
@@ -62,13 +98,14 @@ export default function TreeCanvas({ family, initialMembers, canEdit, userId, us
     return () => { supabase.removeChannel(channel) }
   }, [family.id])
 
+  // Spouses are rendered inline next to their partner, not as independent gen members
   function buildGens(): Member[][] {
     const gens: Member[][] = []
-    let cur = members.filter(m => !m.parent_id)
+    let cur = members.filter(m => !m.parent_id && !m.spouse_of)
     while (cur.length) {
       gens.push(cur)
       const ids = cur.map(m => m.id)
-      cur = members.filter(m => m.parent_id && ids.includes(m.parent_id))
+      cur = members.filter(m => m.parent_id && ids.includes(m.parent_id) && !m.spouse_of)
     }
     return gens
   }
@@ -104,10 +141,7 @@ export default function TreeCanvas({ family, initialMembers, canEdit, userId, us
     ).join('')
   }, [members])
 
-  useEffect(() => {
-    requestAnimationFrame(drawLines)
-  }, [members, drawLines])
-
+  useEffect(() => { requestAnimationFrame(drawLines) }, [members, drawLines])
   useEffect(() => {
     window.addEventListener('resize', drawLines)
     return () => window.removeEventListener('resize', drawLines)
@@ -121,22 +155,23 @@ export default function TreeCanvas({ family, initialMembers, canEdit, userId, us
     } else if (modal?.mode === 'add') {
       const { addAs, anchorMember } = modal
 
-      // Determine parent_id for the new member
       let newParentId: string | null = null
+      let newSpouseOf: string | null = null
+
       if (addAs === 'child') newParentId = anchorMember?.id ?? null
       else if (addAs === 'sibling') newParentId = anchorMember?.parent_id ?? null
       else if (addAs === 'parent') newParentId = anchorMember?.parent_id ?? null
-      // root: newParentId stays null
+      else if (addAs === 'spouse') newSpouseOf = anchorMember?.id ?? null
+      // root: both stay null
 
       const { data: created } = await supabase
         .from('members')
-        .insert({ ...data, family_id: family.id, parent_id: newParentId })
+        .insert({ ...data, family_id: family.id, parent_id: newParentId, spouse_of: newSpouseOf })
         .select().single()
 
       if (created) {
         let updatedMembers = [...members, created]
 
-        // For 'parent': re-parent the anchor under the new member
         if (addAs === 'parent' && anchorMember) {
           await supabase.from('members').update({ parent_id: created.id }).eq('id', anchorMember.id)
           updatedMembers = updatedMembers.map(m =>
@@ -176,15 +211,14 @@ export default function TreeCanvas({ family, initialMembers, canEdit, userId, us
 
   function openAddSelf() {
     setModal({
-      mode: 'add',
-      addAs: 'root',
-      anchorMember: null,
-      isSelfAdd: true,
-      prefill: {
-        name: userProfile?.full_name ?? '',
-        photo_url: userProfile?.avatar_url ?? null,
-      },
+      mode: 'add', addAs: 'root', anchorMember: null, isSelfAdd: true,
+      prefill: { name: userProfile?.full_name ?? '', photo_url: userProfile?.avatar_url ?? null },
     })
+  }
+
+  function openRelModal(addAs: AddAs) {
+    setShowRelPicker(false)
+    setModal({ mode: 'add', addAs, anchorMember: selected })
   }
 
   async function handleFamilySave() {
@@ -206,6 +240,7 @@ export default function TreeCanvas({ family, initialMembers, canEdit, userId, us
   }
 
   const gens = buildGens()
+  const isEmpty = gens.length === 0
 
   return (
     <div className="tree-page">
@@ -223,15 +258,16 @@ export default function TreeCanvas({ family, initialMembers, canEdit, userId, us
           <span className="member-count">
             {members.length} {members.length === 1 ? 'person' : 'people'}
           </span>
-          {canEdit && (
-            <button className="btn-primary" onClick={() => setModal({ mode: 'add', addAs: 'root', anchorMember: null })}>
+          {/* Header add button only shown for empty trees — prevents orphans */}
+          {canEdit && isEmpty && (
+            <button className="btn-primary"
+              onClick={() => setModal({ mode: 'add', addAs: 'root', anchorMember: null })}>
               + Add member
             </button>
           )}
         </div>
       </header>
 
-      {/* "Add yourself" banner — shown when logged in and not yet in this tree */}
       {userId && !selfInTree && (
         <div className="self-banner">
           You&rsquo;re not in this tree yet.{' '}
@@ -251,7 +287,7 @@ export default function TreeCanvas({ family, initialMembers, canEdit, userId, us
         <div className="tree-canvas" ref={canvasRef}>
           <svg ref={svgRef} className="svg-lines" />
 
-          {gens.length === 0 ? (
+          {isEmpty ? (
             <div className="empty">
               <div className="empty-glyph">🌿</div>
               <h2>Begin your tree</h2>
@@ -267,29 +303,20 @@ export default function TreeCanvas({ family, initialMembers, canEdit, userId, us
             gens.map((gen, gi) => (
               <div key={gi} className="gen-row">
                 {gen.map(m => {
-                  const isSelf = m.id === userMemberId
+                  const spouses = members.filter(s => s.spouse_of === m.id)
                   return (
-                    <div
-                      key={m.id}
-                      data-id={m.id}
-                      className={`card${m.id === selectedId ? ' selected' : ''}${isSelf ? ' card--self' : ''}`}
-                      style={{ animationDelay: `${gi * 60}ms` }}
-                      onClick={() => setSelectedId(id => id === m.id ? null : m.id)}
-                    >
-                      {isSelf && <span className="card-self-badge">You</span>}
-                      <div className="avatar">
-                        {m.photo_url
-                          ? <img src={m.photo_url} alt="" />
-                          : inits(m.name)}
-                      </div>
-                      <div className="card-name">{m.name}</div>
-                      {(m.born || m.died) && (
-                        <div className="card-meta">
-                          {m.born && m.died ? `${m.born} – ${m.died}` : m.born ? `b. ${m.born}` : `d. ${m.died}`}
+                    <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
+                      <MemberCard m={m} selectedId={selectedId} userMemberId={userMemberId}
+                        onSelect={id => setSelectedId(prev => prev === id ? null : id)}
+                        animDelay={gi * 60} />
+                      {spouses.map(s => (
+                        <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
+                          <div className="spouse-connector" />
+                          <MemberCard m={s} selectedId={selectedId} userMemberId={userMemberId}
+                            onSelect={id => setSelectedId(prev => prev === id ? null : id)}
+                            animDelay={gi * 60} />
                         </div>
-                      )}
-                      {m.note && <div className="card-meta">{m.note}</div>}
-                      {m.relation && <span className="card-tag">{m.relation}</span>}
+                      ))}
                     </div>
                   )
                 })}
@@ -315,27 +342,22 @@ export default function TreeCanvas({ family, initialMembers, canEdit, userId, us
             </div>
             <div className="tray-btns">
               {userId && !selfInTree && (
-                <button className="btn-ghost" onClick={handleThisIsMe}>
-                  This is me
-                </button>
+                <button className="btn-ghost" onClick={handleThisIsMe}>This is me</button>
               )}
               {canEdit && (
                 <>
-                  <button className="btn-ghost tray-rel-btn"
-                    onClick={() => setModal({ mode: 'add', addAs: 'parent', anchorMember: selected })}
-                    title={`Add parent of ${selected.name}`}>
-                    ↑ Parent
-                  </button>
-                  <button className="btn-ghost tray-rel-btn"
-                    onClick={() => setModal({ mode: 'add', addAs: 'sibling', anchorMember: selected })}
-                    title={`Add sibling of ${selected.name}`}>
-                    ↔ Sibling
-                  </button>
-                  <button className="btn-ghost tray-rel-btn"
-                    onClick={() => setModal({ mode: 'add', addAs: 'child', anchorMember: selected })}
-                    title={`Add child of ${selected.name}`}>
-                    ↓ Child
-                  </button>
+                  {showRelPicker ? (
+                    <div className="rel-picker">
+                      <button className="rel-picker-btn" onClick={() => openRelModal('parent')}>↑ Parent</button>
+                      <button className="rel-picker-btn" onClick={() => openRelModal('child')}>↓ Child</button>
+                      <button className="rel-picker-btn" onClick={() => openRelModal('sibling')}>↔ Sibling</button>
+                      <button className="rel-picker-btn" onClick={() => openRelModal('spouse')}>♡ Spouse</button>
+                    </div>
+                  ) : (
+                    <button className="btn-ghost" onClick={() => setShowRelPicker(true)}>
+                      + Add relative
+                    </button>
+                  )}
                   <button className="btn-primary"
                     onClick={() => setModal({ mode: 'edit', member: selected })}>
                     Edit
