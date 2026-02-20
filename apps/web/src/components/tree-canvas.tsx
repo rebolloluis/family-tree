@@ -14,9 +14,18 @@ type Props = {
   userProfile?: { full_name: string | null; avatar_url: string | null } | null
 }
 
+type AddAs = 'root' | 'child' | 'sibling' | 'parent'
+
 type ModalState =
-  | { mode: 'add'; parentId: string | null; isSelfAdd?: boolean; prefill?: { name: string; photo_url: string | null } }
+  | { mode: 'add'; addAs: AddAs; anchorMember: Member | null; isSelfAdd?: boolean; prefill?: { name: string; photo_url: string | null } }
   | { mode: 'edit'; member: Member }
+
+function addTitle(addAs: AddAs, anchor: Member | null): string {
+  if (!anchor || addAs === 'root') return 'Add member'
+  if (addAs === 'parent') return `Add parent of ${anchor.name}`
+  if (addAs === 'sibling') return `Add sibling of ${anchor.name}`
+  return `Add child of ${anchor.name}`
+}
 
 const inits = (n: string) =>
   n.trim().split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase() || '?'
@@ -110,12 +119,33 @@ export default function TreeCanvas({ family, initialMembers, canEdit, userId, us
         .from('members').update(data).eq('id', modal.member.id).select().single()
       if (updated) setMembers(ms => ms.map(m => m.id === updated.id ? updated : m))
     } else if (modal?.mode === 'add') {
+      const { addAs, anchorMember } = modal
+
+      // Determine parent_id for the new member
+      let newParentId: string | null = null
+      if (addAs === 'child') newParentId = anchorMember?.id ?? null
+      else if (addAs === 'sibling') newParentId = anchorMember?.parent_id ?? null
+      else if (addAs === 'parent') newParentId = anchorMember?.parent_id ?? null
+      // root: newParentId stays null
+
       const { data: created } = await supabase
         .from('members')
-        .insert({ ...data, family_id: family.id, parent_id: modal.parentId })
+        .insert({ ...data, family_id: family.id, parent_id: newParentId })
         .select().single()
+
       if (created) {
-        setMembers(ms => [...ms, created])
+        let updatedMembers = [...members, created]
+
+        // For 'parent': re-parent the anchor under the new member
+        if (addAs === 'parent' && anchorMember) {
+          await supabase.from('members').update({ parent_id: created.id }).eq('id', anchorMember.id)
+          updatedMembers = updatedMembers.map(m =>
+            m.id === anchorMember.id ? { ...m, parent_id: created.id } : m
+          )
+        }
+
+        setMembers(updatedMembers)
+
         if (modal.isSelfAdd && userId) {
           await supabase.from('profiles').update({ member_id: created.id }).eq('id', userId)
           setUserMemberId(created.id)
@@ -147,7 +177,8 @@ export default function TreeCanvas({ family, initialMembers, canEdit, userId, us
   function openAddSelf() {
     setModal({
       mode: 'add',
-      parentId: null,
+      addAs: 'root',
+      anchorMember: null,
       isSelfAdd: true,
       prefill: {
         name: userProfile?.full_name ?? '',
@@ -193,7 +224,7 @@ export default function TreeCanvas({ family, initialMembers, canEdit, userId, us
             {members.length} {members.length === 1 ? 'person' : 'people'}
           </span>
           {canEdit && (
-            <button className="btn-primary" onClick={() => setModal({ mode: 'add', parentId: null })}>
+            <button className="btn-primary" onClick={() => setModal({ mode: 'add', addAs: 'root', anchorMember: null })}>
               + Add member
             </button>
           )}
@@ -227,7 +258,7 @@ export default function TreeCanvas({ family, initialMembers, canEdit, userId, us
               <p>Add a family member to start mapping your history.</p>
               {canEdit && (
                 <button className="btn-primary" style={{ marginTop: '0.75rem' }}
-                  onClick={() => setModal({ mode: 'add', parentId: null })}>
+                  onClick={() => setModal({ mode: 'add', addAs: 'root', anchorMember: null })}>
                   + Add first member
                 </button>
               )}
@@ -290,9 +321,20 @@ export default function TreeCanvas({ family, initialMembers, canEdit, userId, us
               )}
               {canEdit && (
                 <>
-                  <button className="btn-ghost"
-                    onClick={() => setModal({ mode: 'add', parentId: selected.id })}>
-                    + Child
+                  <button className="btn-ghost tray-rel-btn"
+                    onClick={() => setModal({ mode: 'add', addAs: 'parent', anchorMember: selected })}
+                    title={`Add parent of ${selected.name}`}>
+                    ↑ Parent
+                  </button>
+                  <button className="btn-ghost tray-rel-btn"
+                    onClick={() => setModal({ mode: 'add', addAs: 'sibling', anchorMember: selected })}
+                    title={`Add sibling of ${selected.name}`}>
+                    ↔ Sibling
+                  </button>
+                  <button className="btn-ghost tray-rel-btn"
+                    onClick={() => setModal({ mode: 'add', addAs: 'child', anchorMember: selected })}
+                    title={`Add child of ${selected.name}`}>
+                    ↓ Child
                   </button>
                   <button className="btn-primary"
                     onClick={() => setModal({ mode: 'edit', member: selected })}>
@@ -311,6 +353,7 @@ export default function TreeCanvas({ family, initialMembers, canEdit, userId, us
           member={modal.mode === 'edit' ? modal.member : undefined}
           familyId={family.id}
           prefill={modal.mode === 'add' ? modal.prefill : undefined}
+          title={modal.mode === 'add' ? addTitle(modal.addAs, modal.anchorMember) : undefined}
           onSave={handleSave}
           onDelete={modal.mode === 'edit' ? () => handleDelete(modal.member.id) : undefined}
           onClose={() => setModal(null)}

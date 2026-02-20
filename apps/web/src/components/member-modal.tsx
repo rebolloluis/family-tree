@@ -9,6 +9,7 @@ type Props = {
   member?: Member
   familyId: string
   prefill?: { name: string; photo_url: string | null }
+  title?: string
   onSave: (data: Partial<Member>) => void
   onDelete?: () => void
   onClose: () => void
@@ -20,7 +21,7 @@ const RELATIONS = ['Grandfather', 'Grandmother', 'Father', 'Mother', 'Son', 'Dau
 const inits = (n: string) =>
   n.trim().split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase() || '?'
 
-export default function MemberModal({ mode, member, familyId, prefill, onSave, onDelete, onClose }: Props) {
+export default function MemberModal({ mode, member, familyId, prefill, title, onSave, onDelete, onClose }: Props) {
   const [name, setName]         = useState(member?.name ?? prefill?.name ?? '')
   const [born, setBorn]         = useState(member?.born?.toString() ?? '')
   const [died, setDied]         = useState(member?.died?.toString() ?? '')
@@ -68,7 +69,7 @@ export default function MemberModal({ mode, member, familyId, prefill, onSave, o
     <div className="overlay open" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
       <div className="modal">
         <div className="modal-hd">
-          <h2>{mode === 'add' ? 'Add member' : 'Edit member'}</h2>
+          <h2>{title ?? (mode === 'add' ? 'Add member' : 'Edit member')}</h2>
           <button className="modal-x" onClick={onClose}>✕</button>
         </div>
 
@@ -98,13 +99,15 @@ export default function MemberModal({ mode, member, familyId, prefill, onSave, o
           </div>
         </div>
 
-        <div className="field">
-          <label>Relation</label>
-          <select value={relation} onChange={e => setRelation(e.target.value)}>
-            <option value="">— Select —</option>
-            {RELATIONS.map(r => <option key={r}>{r}</option>)}
-          </select>
-        </div>
+        {mode === 'edit' && (
+          <div className="field">
+            <label>Relation</label>
+            <select value={relation} onChange={e => setRelation(e.target.value)}>
+              <option value="">— Select —</option>
+              {RELATIONS.map(r => <option key={r}>{r}</option>)}
+            </select>
+          </div>
+        )}
 
         <div className="field">
           <label>Note</label>
