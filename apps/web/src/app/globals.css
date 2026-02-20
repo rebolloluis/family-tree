@@ -245,26 +245,28 @@ input:focus { border-color: var(--ink); }
   position: fixed; bottom: 1.5rem; left: 50%;
   transform: translateX(-50%) translateY(16px);
   z-index: 50; background: var(--white); border: 1px solid var(--border);
-  border-radius: 12px; padding: 0.8rem 1rem;
-  display: flex; align-items: center; gap: 0.9rem;
+  border-radius: 12px; padding: 0.65rem 0.85rem;
+  display: flex; align-items: center; gap: 0.75rem;
   box-shadow: 0 4px 28px rgba(0,0,0,0.09), 0 1px 3px rgba(0,0,0,0.04);
   opacity: 0; pointer-events: none;
   transition: opacity 0.2s, transform 0.2s;
-  width: calc(100vw - 3rem); max-width: 420px;
+  width: calc(100vw - 3rem); max-width: 580px;
 }
 .tray.open { opacity: 1; pointer-events: all; transform: translateX(-50%) translateY(0); }
 .tray-av {
-  width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0;
+  width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0;
   background: var(--surface); border: 1px solid var(--border);
   display: flex; align-items: center; justify-content: center;
-  font-family: var(--serif); font-size: 0.9rem; color: var(--ink-mid); overflow: hidden;
+  font-family: var(--serif); font-size: 0.82rem; color: var(--ink-mid); overflow: hidden;
 }
 .tray-av img { width: 100%; height: 100%; object-fit: cover; }
-.tray-info { flex: 1; min-width: 0; }
-.tray-name { font-family: var(--serif); font-size: 0.92rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tray-meta { font-size: 0.68rem; color: var(--ink-light); }
-.tray-btns { display: flex; gap: 0.4rem; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
-.tray-rel-btn { font-size: 0.72rem; padding: 0.35rem 0.6rem; }
+.tray-info { flex: 1; min-width: 0; overflow: hidden; }
+.tray-name { font-family: var(--serif); font-size: 0.88rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tray-meta { font-size: 0.67rem; color: var(--ink-light); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tray-btns { display: flex; gap: 0.3rem; flex-shrink: 0; align-items: center; }
+.tray-btns .btn-ghost,
+.tray-btns .btn-primary { font-size: 0.75rem; padding: 0.3rem 0.65rem; }
+.tray-rel-btn { color: var(--ink-mid); }
 
 /* ── Modal ─────────────────────────────────────────── */
 .overlay {
