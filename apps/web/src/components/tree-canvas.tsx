@@ -314,7 +314,7 @@ export default function TreeCanvas({ family, initialMembers, canEdit, userId, us
               </div>
             </div>
             <div className="tray-btns">
-              {userId && selected.id !== userMemberId && (
+              {userId && !selfInTree && (
                 <button className="btn-ghost" onClick={handleThisIsMe}>
                   This is me
                 </button>
