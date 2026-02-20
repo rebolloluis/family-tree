@@ -26,12 +26,14 @@ Goal: maximize shared code and data across all three with minimal rework.
 - [x] Define and finalize stack (frontend framework, backend, auth, DB)
 - [x] Migrate single-file app to modular project structure
 - [x] Authentication (sign up / log in / log out)
-- [ ] User profiles (name, photo, linked family member)
+- [x] User profiles (display name + avatar photo)
 - [x] Family tree data model: members, relationships, ownership
-- [x] Public browsing — homepage with search to find existing trees
+- [x] Public browsing — homepage with public family trees
 - [x] Private editing — only logged-in members can add/edit
-- [ ] Real-time sync across devices/users
-- [ ] Photo uploads per member (profile photo — stored as base64 locally, needs Supabase Storage)
+- [x] Real-time sync across devices/users (Supabase `postgres_changes`)
+- [x] Photo uploads per member (Supabase Storage)
+- [x] Deploy to production (Vercel)
+- [ ] Link user profile to a member node in their own tree
 
 ### Phase 2 — Living Tree Visualization
 - [ ] Replace current connector-line layout with an illustrated, organic tree
