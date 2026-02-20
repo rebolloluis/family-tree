@@ -33,7 +33,7 @@ Goal: maximize shared code and data across all three with minimal rework.
 - [x] Real-time sync across devices/users (Supabase `postgres_changes`)
 - [x] Photo uploads per member (Supabase Storage)
 - [x] Deploy to production (Vercel)
-- [ ] Link user profile to a member node in their own tree
+- [x] Link user profile to a member node in their own tree
 
 ### Phase 2 — Living Tree Visualization
 - [ ] Replace current connector-line layout with an illustrated, organic tree

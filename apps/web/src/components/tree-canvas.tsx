@@ -9,20 +9,29 @@ type Props = {
   family: Pick<Family, 'id' | 'name' | 'description'>
   initialMembers: Member[]
   canEdit: boolean
+  userId?: string | null
+  userMemberId?: string | null
+  userProfile?: { full_name: string | null; avatar_url: string | null } | null
 }
+
+type ModalState =
+  | { mode: 'add'; parentId: string | null; isSelfAdd?: boolean; prefill?: { name: string; photo_url: string | null } }
+  | { mode: 'edit'; member: Member }
 
 const inits = (n: string) =>
   n.trim().split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase() || '?'
 
-export default function TreeCanvas({ family, initialMembers, canEdit }: Props) {
+export default function TreeCanvas({ family, initialMembers, canEdit, userId, userMemberId: initialUserMemberId, userProfile }: Props) {
   const [members, setMembers] = useState<Member[]>(initialMembers)
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [modal, setModal] = useState<{ mode: 'add'; parentId: string | null } | { mode: 'edit'; member: Member } | null>(null)
+  const [modal, setModal] = useState<ModalState | null>(null)
+  const [userMemberId, setUserMemberId] = useState<string | null>(initialUserMemberId ?? null)
   const svgRef = useRef<SVGSVGElement>(null)
   const canvasRef = useRef<HTMLDivElement>(null)
   const supabase = createClient()
 
   const selected = members.find(m => m.id === selectedId) ?? null
+  const selfInTree = userMemberId ? members.some(m => m.id === userMemberId) : false
 
   // Real-time sync
   useEffect(() => {
@@ -99,7 +108,13 @@ export default function TreeCanvas({ family, initialMembers, canEdit }: Props) {
         .from('members')
         .insert({ ...data, family_id: family.id, parent_id: modal.parentId })
         .select().single()
-      if (created) setMembers(ms => [...ms, created])
+      if (created) {
+        setMembers(ms => [...ms, created])
+        if (modal.isSelfAdd && userId) {
+          await supabase.from('profiles').update({ member_id: created.id }).eq('id', userId)
+          setUserMemberId(created.id)
+        }
+      }
     }
     setModal(null)
   }
@@ -113,7 +128,26 @@ export default function TreeCanvas({ family, initialMembers, canEdit }: Props) {
     await supabase.from('members').delete().in('id', toDelete)
     setMembers(ms => ms.filter(m => !toDelete.includes(m.id)))
     if (selectedId && toDelete.includes(selectedId)) setSelectedId(null)
+    if (userMemberId && toDelete.includes(userMemberId)) setUserMemberId(null)
     setModal(null)
+  }
+
+  async function handleThisIsMe() {
+    if (!userId || !selectedId) return
+    await supabase.from('profiles').update({ member_id: selectedId }).eq('id', userId)
+    setUserMemberId(selectedId)
+  }
+
+  function openAddSelf() {
+    setModal({
+      mode: 'add',
+      parentId: null,
+      isSelfAdd: true,
+      prefill: {
+        name: userProfile?.full_name ?? '',
+        photo_url: userProfile?.avatar_url ?? null,
+      },
+    })
   }
 
   const gens = buildGens()
@@ -136,6 +170,14 @@ export default function TreeCanvas({ family, initialMembers, canEdit }: Props) {
           )}
         </div>
       </header>
+
+      {/* "Add yourself" banner — shown when logged in and not yet in this tree */}
+      {userId && !selfInTree && (
+        <div className="self-banner">
+          You&rsquo;re not in this tree yet.{' '}
+          <button className="self-banner-btn" onClick={openAddSelf}>Add yourself</button>
+        </div>
+      )}
 
       <div
         className="canvas-wrap"
@@ -164,29 +206,33 @@ export default function TreeCanvas({ family, initialMembers, canEdit }: Props) {
           ) : (
             gens.map((gen, gi) => (
               <div key={gi} className="gen-row">
-                {gen.map(m => (
-                  <div
-                    key={m.id}
-                    data-id={m.id}
-                    className={`card${m.id === selectedId ? ' selected' : ''}`}
-                    style={{ animationDelay: `${gi * 60}ms` }}
-                    onClick={() => setSelectedId(id => id === m.id ? null : m.id)}
-                  >
-                    <div className="avatar">
-                      {m.photo_url
-                        ? <img src={m.photo_url} alt="" />
-                        : inits(m.name)}
-                    </div>
-                    <div className="card-name">{m.name}</div>
-                    {(m.born || m.died) && (
-                      <div className="card-meta">
-                        {m.born && m.died ? `${m.born} – ${m.died}` : m.born ? `b. ${m.born}` : `d. ${m.died}`}
+                {gen.map(m => {
+                  const isSelf = m.id === userMemberId
+                  return (
+                    <div
+                      key={m.id}
+                      data-id={m.id}
+                      className={`card${m.id === selectedId ? ' selected' : ''}${isSelf ? ' card--self' : ''}`}
+                      style={{ animationDelay: `${gi * 60}ms` }}
+                      onClick={() => setSelectedId(id => id === m.id ? null : m.id)}
+                    >
+                      {isSelf && <span className="card-self-badge">You</span>}
+                      <div className="avatar">
+                        {m.photo_url
+                          ? <img src={m.photo_url} alt="" />
+                          : inits(m.name)}
                       </div>
-                    )}
-                    {m.note && <div className="card-meta">{m.note}</div>}
-                    {m.relation && <span className="card-tag">{m.relation}</span>}
-                  </div>
-                ))}
+                      <div className="card-name">{m.name}</div>
+                      {(m.born || m.died) && (
+                        <div className="card-meta">
+                          {m.born && m.died ? `${m.born} – ${m.died}` : m.born ? `b. ${m.born}` : `d. ${m.died}`}
+                        </div>
+                      )}
+                      {m.note && <div className="card-meta">{m.note}</div>}
+                      {m.relation && <span className="card-tag">{m.relation}</span>}
+                    </div>
+                  )
+                })}
               </div>
             ))
           )}
@@ -207,18 +253,25 @@ export default function TreeCanvas({ family, initialMembers, canEdit }: Props) {
                   .filter(Boolean).join(' · ') || '—'}
               </div>
             </div>
-            {canEdit && (
-              <div className="tray-btns">
-                <button className="btn-ghost"
-                  onClick={() => setModal({ mode: 'add', parentId: selected.id })}>
-                  + Child
+            <div className="tray-btns">
+              {userId && selected.id !== userMemberId && (
+                <button className="btn-ghost" onClick={handleThisIsMe}>
+                  This is me
                 </button>
-                <button className="btn-primary"
-                  onClick={() => setModal({ mode: 'edit', member: selected })}>
-                  Edit
-                </button>
-              </div>
-            )}
+              )}
+              {canEdit && (
+                <>
+                  <button className="btn-ghost"
+                    onClick={() => setModal({ mode: 'add', parentId: selected.id })}>
+                    + Child
+                  </button>
+                  <button className="btn-primary"
+                    onClick={() => setModal({ mode: 'edit', member: selected })}>
+                    Edit
+                  </button>
+                </>
+              )}
+            </div>
           </>
         )}
       </div>
@@ -228,6 +281,7 @@ export default function TreeCanvas({ family, initialMembers, canEdit }: Props) {
           mode={modal.mode}
           member={modal.mode === 'edit' ? modal.member : undefined}
           familyId={family.id}
+          prefill={modal.mode === 'add' ? modal.prefill : undefined}
           onSave={handleSave}
           onDelete={modal.mode === 'edit' ? () => handleDelete(modal.member.id) : undefined}
           onClose={() => setModal(null)}

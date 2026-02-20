@@ -8,6 +8,7 @@ type Props = {
   mode: 'add' | 'edit'
   member?: Member
   familyId: string
+  prefill?: { name: string; photo_url: string | null }
   onSave: (data: Partial<Member>) => void
   onDelete?: () => void
   onClose: () => void
@@ -19,13 +20,13 @@ const RELATIONS = ['Grandfather', 'Grandmother', 'Father', 'Mother', 'Son', 'Dau
 const inits = (n: string) =>
   n.trim().split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase() || '?'
 
-export default function MemberModal({ mode, member, familyId, onSave, onDelete, onClose }: Props) {
-  const [name, setName]         = useState(member?.name ?? '')
+export default function MemberModal({ mode, member, familyId, prefill, onSave, onDelete, onClose }: Props) {
+  const [name, setName]         = useState(member?.name ?? prefill?.name ?? '')
   const [born, setBorn]         = useState(member?.born?.toString() ?? '')
   const [died, setDied]         = useState(member?.died?.toString() ?? '')
   const [relation, setRelation] = useState(member?.relation ?? '')
   const [note, setNote]         = useState(member?.note ?? '')
-  const [photoUrl, setPhotoUrl] = useState<string | null>(member?.photo_url ?? null)
+  const [photoUrl, setPhotoUrl] = useState<string | null>(member?.photo_url ?? prefill?.photo_url ?? null)
   const [pendingFile, setPendingFile] = useState<File | null>(null)
   const [saving, setSaving] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)

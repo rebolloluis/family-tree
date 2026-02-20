@@ -176,6 +176,14 @@ input:focus { border-color: var(--ink); }
 .member-count { font-size: 0.72rem; color: var(--ink-light); }
 
 .tree-page { display: flex; flex-direction: column; height: calc(100dvh - var(--nav-height)); overflow: hidden; }
+.self-banner {
+  padding: 0.55rem 2rem; background: #fdf6ec; border-bottom: 1px solid #e8d9b8;
+  font-size: 0.8rem; color: #6b5120;
+}
+.self-banner-btn {
+  background: none; border: none; padding: 0; cursor: pointer;
+  color: #8a6f3e; font-weight: 600; text-decoration: underline; font-size: inherit;
+}
 .canvas-wrap { flex: 1; overflow: auto; background: var(--white); }
 .tree-canvas { position: relative; min-width: max-content; padding: 4rem 4rem 7rem; }
 .svg-lines { position: absolute; top: 0; left: 0; pointer-events: none; z-index: 0; overflow: visible; }
@@ -193,6 +201,12 @@ input:focus { border-color: var(--ink); }
 }
 .card:hover { border-color: var(--border-dark); box-shadow: 0 3px 14px rgba(0,0,0,0.055); transform: translateY(-2px); }
 .card.selected { border-color: var(--ink); box-shadow: 0 0 0 3px rgba(26,26,24,0.06); }
+.card.card--self { border-color: #8a6f3e; box-shadow: 0 0 0 3px rgba(138,111,62,0.12); position: relative; }
+.card-self-badge {
+  position: absolute; top: -8px; right: 8px;
+  font-size: 0.58rem; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase;
+  background: #8a6f3e; color: #fff; border-radius: 20px; padding: 2px 7px;
+}
 @keyframes cardIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
 
 .avatar {
