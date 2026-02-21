@@ -110,6 +110,19 @@ export default function TreeCanvas({ family, initialMembers, canEdit, userId, us
     return gens
   }
 
+  // Returns all descendant IDs of memberId (via parent_id or parent2_id links)
+  function getDescendants(memberId: string): Set<string> {
+    const result = new Set<string>()
+    const queue = [memberId]
+    while (queue.length) {
+      const id = queue.shift()!
+      members
+        .filter(m => m.parent_id === id || m.parent2_id === id)
+        .forEach(c => { if (!result.has(c.id)) { result.add(c.id); queue.push(c.id) } })
+    }
+    return result
+  }
+
   const drawLines = useCallback(() => {
     const svg = svgRef.current
     const canvas = canvasRef.current
@@ -120,20 +133,23 @@ export default function TreeCanvas({ family, initialMembers, canEdit, userId, us
     const cr = canvas.getBoundingClientRect()
     const paths: string[] = []
 
-    members.forEach(m => {
-      if (!m.parent_id) return
-      const pe = canvas.querySelector<HTMLElement>(`[data-id="${m.parent_id}"]`)
-      const ce = canvas.querySelector<HTMLElement>(`[data-id="${m.id}"]`)
+    function addLine(parentId: string, childId: string) {
+      const pe = canvas!.querySelector<HTMLElement>(`[data-id="${parentId}"]`)
+      const ce = canvas!.querySelector<HTMLElement>(`[data-id="${childId}"]`)
       if (!pe || !ce) return
-
       const pr = pe.getBoundingClientRect()
       const cer = ce.getBoundingClientRect()
-      const px = pr.left + pr.width / 2 - cr.left + canvas.scrollLeft
-      const py = pr.top + pr.height - cr.top + canvas.scrollTop
-      const cx = cer.left + cer.width / 2 - cr.left + canvas.scrollLeft
-      const cy = cer.top - cr.top + canvas.scrollTop
+      const px = pr.left + pr.width / 2 - cr.left + canvas!.scrollLeft
+      const py = pr.top + pr.height - cr.top + canvas!.scrollTop
+      const cx = cer.left + cer.width / 2 - cr.left + canvas!.scrollLeft
+      const cy = cer.top - cr.top + canvas!.scrollTop
       const my = (py + cy) / 2
       paths.push(`M ${px} ${py} C ${px} ${my}, ${cx} ${my}, ${cx} ${cy}`)
+    }
+
+    members.forEach(m => {
+      if (m.parent_id) addLine(m.parent_id, m.id)
+      if (m.parent2_id) addLine(m.parent2_id, m.id)
     })
 
     svg.innerHTML = paths.map(d =>
@@ -147,7 +163,7 @@ export default function TreeCanvas({ family, initialMembers, canEdit, userId, us
     return () => window.removeEventListener('resize', drawLines)
   }, [drawLines])
 
-  async function handleSave(data: Partial<Member>) {
+  async function handleSave(data: Partial<Member>, meta: { alsoParentOfIds: string[] }) {
     if (modal?.mode === 'edit') {
       const { data: updated } = await supabase
         .from('members').update(data).eq('id', modal.member.id).select().single()
@@ -156,27 +172,61 @@ export default function TreeCanvas({ family, initialMembers, canEdit, userId, us
       const { addAs, anchorMember } = modal
 
       let newParentId: string | null = null
+      let newParent2Id: string | null = data.parent2_id ?? null
       let newSpouseOf: string | null = null
 
-      if (addAs === 'child') newParentId = anchorMember?.id ?? null
-      else if (addAs === 'sibling') newParentId = anchorMember?.parent_id ?? null
-      else if (addAs === 'parent') newParentId = anchorMember?.parent_id ?? null
-      else if (addAs === 'spouse') newSpouseOf = anchorMember?.id ?? null
-      // root: both stay null
+      if (addAs === 'child') {
+        newParentId = anchorMember?.id ?? null
+        // newParent2Id comes from "also child of" selection in modal
+      } else if (addAs === 'sibling') {
+        newParentId = anchorMember?.parent_id ?? null
+        newParent2Id = anchorMember?.parent2_id ?? null  // auto-inherit both parents
+      } else if (addAs === 'parent') {
+        newParentId = anchorMember?.parent_id ?? null  // chain insertion
+        newParent2Id = null
+      } else if (addAs === 'spouse') {
+        newSpouseOf = anchorMember?.id ?? null
+        // newParent2Id from "also child of" if selected
+      }
+      // root: all stay at their data/null values
+
+      // Exclude parent2_id from data spread — we set it explicitly above
+      const { parent2_id: _p2, ...insertFields } = data
 
       const { data: created } = await supabase
         .from('members')
-        .insert({ ...data, family_id: family.id, parent_id: newParentId, spouse_of: newSpouseOf })
+        .insert({ ...insertFields, family_id: family.id, parent_id: newParentId, parent2_id: newParent2Id, spouse_of: newSpouseOf })
         .select().single()
 
       if (created) {
         let updatedMembers = [...members, created]
 
         if (addAs === 'parent' && anchorMember) {
-          await supabase.from('members').update({ parent_id: created.id }).eq('id', anchorMember.id)
-          updatedMembers = updatedMembers.map(m =>
-            m.id === anchorMember.id ? { ...m, parent_id: created.id } : m
-          )
+          // Point anchor to new parent (use parent2_id slot if parent1 is already taken)
+          if (!anchorMember.parent_id) {
+            await supabase.from('members').update({ parent_id: created.id }).eq('id', anchorMember.id)
+            updatedMembers = updatedMembers.map(m =>
+              m.id === anchorMember.id ? { ...m, parent_id: created.id } : m
+            )
+          } else if (!anchorMember.parent2_id) {
+            await supabase.from('members').update({ parent2_id: created.id }).eq('id', anchorMember.id)
+            updatedMembers = updatedMembers.map(m =>
+              m.id === anchorMember.id ? { ...m, parent2_id: created.id } : m
+            )
+          }
+        }
+
+        // "Also parent of" — update each selected existing member's free parent slot
+        for (const targetId of meta.alsoParentOfIds) {
+          const target = members.find(m => m.id === targetId)
+          if (!target) continue
+          if (!target.parent_id) {
+            await supabase.from('members').update({ parent_id: created.id }).eq('id', targetId)
+            updatedMembers = updatedMembers.map(m => m.id === targetId ? { ...m, parent_id: created.id } : m)
+          } else if (!target.parent2_id) {
+            await supabase.from('members').update({ parent2_id: created.id }).eq('id', targetId)
+            updatedMembers = updatedMembers.map(m => m.id === targetId ? { ...m, parent2_id: created.id } : m)
+          }
         }
 
         setMembers(updatedMembers)
@@ -237,6 +287,53 @@ export default function TreeCanvas({ family, initialMembers, canEdit, userId, us
     setFamilyEditName(familyName)
     setFamilyEditDesc(familyDescription)
     setEditingFamily(true)
+  }
+
+  // Compute "also link" options for the modal
+  let alsoChildOfOptions: { id: string; name: string }[] = []
+  let alsoParentOfOptions: { id: string; name: string }[] = []
+
+  if (modal?.mode === 'add') {
+    const anchor = modal.anchorMember
+
+    // "Also child of" — sets parent2_id on the new member
+    // Not shown for 'sibling' (auto-inherits) or 'parent' (chain insertion)
+    if (modal.addAs !== 'sibling' && modal.addAs !== 'parent') {
+      const excludeIds = new Set<string>()
+      if (anchor) {
+        excludeIds.add(anchor.id)
+        getDescendants(anchor.id).forEach(id => excludeIds.add(id))
+      }
+      const candidates = members.filter(m => !excludeIds.has(m.id))
+      // Sort anchor's spouses to the top (most likely co-parent)
+      const spouseIds = anchor
+        ? new Set(members.filter(s => s.spouse_of === anchor.id || anchor.spouse_of === s.id).map(s => s.id))
+        : new Set<string>()
+      alsoChildOfOptions = [
+        ...candidates.filter(m => spouseIds.has(m.id)),
+        ...candidates.filter(m => !spouseIds.has(m.id)),
+      ].map(m => ({ id: m.id, name: m.name }))
+    }
+
+    // "Also parent of" — new member becomes a parent of existing members
+    // Available for all addAs types; exclude anchor and anchor's ancestors
+    const excludeForParent = new Set<string>()
+    if (anchor) {
+      excludeForParent.add(anchor.id)
+      // Walk up parent_id chain
+      let cur: Member | undefined = anchor
+      const seen = new Set<string>()
+      while (cur?.parent_id && !seen.has(cur.parent_id)) {
+        excludeForParent.add(cur.parent_id)
+        seen.add(cur.parent_id)
+        cur = members.find(m => m.id === cur!.parent_id)
+      }
+      // Also exclude immediate parent2 of anchor
+      if (anchor.parent2_id) excludeForParent.add(anchor.parent2_id)
+    }
+    alsoParentOfOptions = members
+      .filter(m => !excludeForParent.has(m.id) && (!m.parent_id || !m.parent2_id))
+      .map(m => ({ id: m.id, name: m.name }))
   }
 
   const gens = buildGens()
@@ -348,7 +445,14 @@ export default function TreeCanvas({ family, initialMembers, canEdit, userId, us
                 <>
                   {showRelPicker ? (
                     <div className="rel-picker">
-                      <button className="rel-picker-btn" onClick={() => openRelModal('parent')}>↑ Parent</button>
+                      <button
+                        className="rel-picker-btn"
+                        onClick={() => openRelModal('parent')}
+                        disabled={!!(selected.parent_id && selected.parent2_id)}
+                        title={selected.parent_id && selected.parent2_id ? 'Already has 2 parents' : undefined}
+                      >
+                        ↑ Parent
+                      </button>
                       <button className="rel-picker-btn" onClick={() => openRelModal('child')}>↓ Child</button>
                       <button className="rel-picker-btn" onClick={() => openRelModal('sibling')}>↔ Sibling</button>
                       <button className="rel-picker-btn" onClick={() => openRelModal('spouse')}>♡ Spouse</button>
@@ -376,6 +480,8 @@ export default function TreeCanvas({ family, initialMembers, canEdit, userId, us
           familyId={family.id}
           prefill={modal.mode === 'add' ? modal.prefill : undefined}
           title={modal.mode === 'add' ? addTitle(modal.addAs, modal.anchorMember) : undefined}
+          alsoChildOfOptions={modal.mode === 'add' ? alsoChildOfOptions : undefined}
+          alsoParentOfOptions={modal.mode === 'add' ? alsoParentOfOptions : undefined}
           onSave={handleSave}
           onDelete={modal.mode === 'edit' ? () => handleDelete(modal.member.id) : undefined}
           onClose={() => setModal(null)}

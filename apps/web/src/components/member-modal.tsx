@@ -10,7 +10,9 @@ type Props = {
   familyId: string
   prefill?: { name: string; photo_url: string | null }
   title?: string
-  onSave: (data: Partial<Member>) => void
+  alsoChildOfOptions?: { id: string; name: string }[]
+  alsoParentOfOptions?: { id: string; name: string }[]
+  onSave: (data: Partial<Member>, meta: { alsoParentOfIds: string[] }) => void
   onDelete?: () => void
   onClose: () => void
 }
@@ -21,7 +23,7 @@ const RELATIONS = ['Grandfather', 'Grandmother', 'Father', 'Mother', 'Son', 'Dau
 const inits = (n: string) =>
   n.trim().split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase() || '?'
 
-export default function MemberModal({ mode, member, familyId, prefill, title, onSave, onDelete, onClose }: Props) {
+export default function MemberModal({ mode, member, familyId, prefill, title, alsoChildOfOptions, alsoParentOfOptions, onSave, onDelete, onClose }: Props) {
   const [name, setName]         = useState(member?.name ?? prefill?.name ?? '')
   const [born, setBorn]         = useState(member?.born?.toString() ?? '')
   const [died, setDied]         = useState(member?.died?.toString() ?? '')
@@ -30,6 +32,8 @@ export default function MemberModal({ mode, member, familyId, prefill, title, on
   const [photoUrl, setPhotoUrl] = useState<string | null>(member?.photo_url ?? prefill?.photo_url ?? null)
   const [pendingFile, setPendingFile] = useState<File | null>(null)
   const [saving, setSaving] = useState(false)
+  const [alsoChildOfId, setAlsoChildOfId] = useState('')
+  const [alsoParentOfIds, setAlsoParentOfIds] = useState<Set<string>>(new Set())
   const fileRef = useRef<HTMLInputElement>(null)
 
   function handlePhoto(e: React.ChangeEvent<HTMLInputElement>) {
@@ -37,6 +41,14 @@ export default function MemberModal({ mode, member, familyId, prefill, title, on
     if (!file) return
     setPendingFile(file)
     setPhotoUrl(URL.createObjectURL(file))
+  }
+
+  function toggleParentOf(id: string, checked: boolean) {
+    setAlsoParentOfIds(prev => {
+      const next = new Set(prev)
+      checked ? next.add(id) : next.delete(id)
+      return next
+    })
   }
 
   async function handleSave() {
@@ -54,16 +66,23 @@ export default function MemberModal({ mode, member, familyId, prefill, title, on
       }
     }
 
-    onSave({
-      name: name.trim(),
-      born: born ? parseInt(born) : null,
-      died: died ? parseInt(died) : null,
-      relation: relation || null,
-      note: note.trim() || null,
-      photo_url: finalPhotoUrl,
-    })
+    onSave(
+      {
+        name: name.trim(),
+        born: born ? parseInt(born) : null,
+        died: died ? parseInt(died) : null,
+        relation: relation || null,
+        note: note.trim() || null,
+        photo_url: finalPhotoUrl,
+        parent2_id: alsoChildOfId || null,
+      },
+      { alsoParentOfIds: [...alsoParentOfIds] }
+    )
     setSaving(false)
   }
+
+  const showLinkSection = mode === 'add' &&
+    ((alsoChildOfOptions?.length ?? 0) > 0 || (alsoParentOfOptions?.length ?? 0) > 0)
 
   return (
     <div className="overlay open" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
@@ -113,6 +132,40 @@ export default function MemberModal({ mode, member, familyId, prefill, title, on
           <label>Note</label>
           <input type="text" value={note} onChange={e => setNote(e.target.value)} placeholder="Occupation, hometown…" />
         </div>
+
+        {showLinkSection && (
+          <div className="field link-section">
+            <label>Also link to existing members</label>
+
+            {(alsoChildOfOptions?.length ?? 0) > 0 && (
+              <div className="link-row">
+                <span className="link-label">Also a child of</span>
+                <select value={alsoChildOfId} onChange={e => setAlsoChildOfId(e.target.value)}>
+                  <option value="">— None —</option>
+                  {alsoChildOfOptions!.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                </select>
+              </div>
+            )}
+
+            {(alsoParentOfOptions?.length ?? 0) > 0 && (
+              <div className="link-row">
+                <span className="link-label">Also a parent of</span>
+                <div className="link-checks">
+                  {alsoParentOfOptions!.map(m => (
+                    <label key={m.id} className="link-check">
+                      <input
+                        type="checkbox"
+                        checked={alsoParentOfIds.has(m.id)}
+                        onChange={e => toggleParentOf(m.id, e.target.checked)}
+                      />
+                      {m.name}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="modal-ft">
           <div>
