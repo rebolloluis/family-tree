@@ -162,22 +162,31 @@ export default function TreeCanvas({ family, initialMembers, canEdit, userId, us
       const childRects = childEls.map(el => el.getBoundingClientRect())
 
       const p1x = toX(p1r),   p1y = toBot(p1r)
-      const p2x = p2r ? toX(p2r)  : null
+      const p2x = p2r ? toX(p2r) : null
       const p2y = p2r ? toBot(p2r) : null
 
       const childXs   = childRects.map(toX)
       const childTops = childRects.map(toTop)
 
-      const parentsBot = p2y !== null ? Math.max(p1y, p2y) : p1y
+      const originX = p2x !== null ? (p1x + p2x) / 2 : p1x
+
+      // Start the line from the couple connector for visual continuity (the segment
+      // inside a taller card's body is hidden behind the card)
+      const connectorEl = p2 ? canvas!.querySelector<HTMLElement>(`[data-couple="${p1}:${p2}"]`) : null
+      const originY = connectorEl
+        ? connectorEl.getBoundingClientRect().bottom - cr.top + st
+        : p1y
+
+      // barY must be below ALL parent card bottoms so the crossbar never overlaps a card
+      const maxParentBottom = p2y !== null ? Math.max(p1y, p2y) : p1y
       const childrenTop = Math.min(...childTops)
-      const barY = (parentsBot + childrenTop) / 2
+      const barY = (maxParentBottom + childrenTop) / 2
 
-      // Vertical stems from each parent down to the crossbar
-      paths.push(`M ${p1x} ${p1y} L ${p1x} ${barY}`)
-      if (p2x !== null && p2y !== null) paths.push(`M ${p2x} ${p2y} L ${p2x} ${barY}`)
+      // Single vertical from couple midpoint down to the crossbar
+      paths.push(`M ${originX} ${originY} L ${originX} ${barY}`)
 
-      // Single horizontal at crossbar spanning parents + all children
-      const allXs = [p1x, ...(p2x !== null ? [p2x] : []), ...childXs]
+      // Single horizontal at crossbar spanning origin + all children
+      const allXs = [originX, ...childXs]
       const minX = Math.min(...allXs)
       const maxX = Math.max(...allXs)
       if (maxX > minX) paths.push(`M ${minX} ${barY} L ${maxX} ${barY}`)
@@ -444,7 +453,7 @@ export default function TreeCanvas({ family, initialMembers, canEdit, userId, us
                         animDelay={gi * 60} />
                       {spouses.map(s => (
                         <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
-                          <div className="spouse-connector" />
+                          <div className="spouse-connector" data-couple={`${m.id}:${s.id}`} />
                           <MemberCard m={s} selectedId={selectedId} userMemberId={userMemberId}
                             onSelect={id => setSelectedId(prev => prev === id ? null : id)}
                             animDelay={gi * 60} />
