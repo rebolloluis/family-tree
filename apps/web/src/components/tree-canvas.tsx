@@ -131,25 +131,61 @@ export default function TreeCanvas({ family, initialMembers, canEdit, userId, us
     svg.setAttribute('height', String(canvas.scrollHeight))
 
     const cr = canvas.getBoundingClientRect()
+    const sl = canvas.scrollLeft
+    const st = canvas.scrollTop
     const paths: string[] = []
 
-    function addLine(parentId: string, childId: string) {
-      const pe = canvas!.querySelector<HTMLElement>(`[data-id="${parentId}"]`)
-      const ce = canvas!.querySelector<HTMLElement>(`[data-id="${childId}"]`)
-      if (!pe || !ce) return
-      const pr = pe.getBoundingClientRect()
-      const cer = ce.getBoundingClientRect()
-      const px = pr.left + pr.width / 2 - cr.left + canvas!.scrollLeft
-      const py = pr.top + pr.height - cr.top + canvas!.scrollTop
-      const cx = cer.left + cer.width / 2 - cr.left + canvas!.scrollLeft
-      const cy = cer.top - cr.top + canvas!.scrollTop
-      const my = (py + cy) / 2
-      paths.push(`M ${px} ${py} C ${px} ${my}, ${cx} ${my}, ${cx} ${cy}`)
-    }
+    const toX   = (r: DOMRect) => r.left + r.width / 2 - cr.left + sl
+    const toBot  = (r: DOMRect) => r.bottom - cr.top + st
+    const toTop  = (r: DOMRect) => r.top    - cr.top + st
 
+    // Group children by their parent pair so lines merge correctly
+    const groups = new Map<string, { p1: string; p2: string | null; children: string[] }>()
     members.forEach(m => {
-      if (m.parent_id) addLine(m.parent_id, m.id)
-      if (m.parent2_id) addLine(m.parent2_id, m.id)
+      if (!m.parent_id) return
+      const key = `${m.parent_id}|${m.parent2_id ?? ''}`
+      if (!groups.has(key)) groups.set(key, { p1: m.parent_id, p2: m.parent2_id ?? null, children: [] })
+      groups.get(key)!.children.push(m.id)
+    })
+
+    groups.forEach(({ p1, p2, children }) => {
+      const p1El = canvas!.querySelector<HTMLElement>(`[data-id="${p1}"]`)
+      if (!p1El) return
+      const p2El = p2 ? canvas!.querySelector<HTMLElement>(`[data-id="${p2}"]`) : null
+      const childEls = children
+        .map(id => canvas!.querySelector<HTMLElement>(`[data-id="${id}"]`))
+        .filter((el): el is HTMLElement => el !== null)
+      if (!childEls.length) return
+
+      const p1r = p1El.getBoundingClientRect()
+      const p2r = p2El?.getBoundingClientRect()
+      const childRects = childEls.map(el => el.getBoundingClientRect())
+
+      const p1x = toX(p1r),   p1y = toBot(p1r)
+      const p2x = p2r ? toX(p2r)  : null
+      const p2y = p2r ? toBot(p2r) : null
+
+      const childXs   = childRects.map(toX)
+      const childTops = childRects.map(toTop)
+
+      const parentsBot = p2y !== null ? Math.max(p1y, p2y) : p1y
+      const childrenTop = Math.min(...childTops)
+      const barY = (parentsBot + childrenTop) / 2
+
+      // Vertical stems from each parent down to the crossbar
+      paths.push(`M ${p1x} ${p1y} L ${p1x} ${barY}`)
+      if (p2x !== null && p2y !== null) paths.push(`M ${p2x} ${p2y} L ${p2x} ${barY}`)
+
+      // Single horizontal at crossbar spanning parents + all children
+      const allXs = [p1x, ...(p2x !== null ? [p2x] : []), ...childXs]
+      const minX = Math.min(...allXs)
+      const maxX = Math.max(...allXs)
+      if (maxX > minX) paths.push(`M ${minX} ${barY} L ${maxX} ${barY}`)
+
+      // Vertical stems from crossbar down to each child
+      childEls.forEach((_, i) => {
+        paths.push(`M ${childXs[i]} ${barY} L ${childXs[i]} ${childTops[i]}`)
+      })
     })
 
     svg.innerHTML = paths.map(d =>
